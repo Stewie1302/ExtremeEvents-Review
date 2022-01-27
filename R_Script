@@ -1,1 +1,250 @@
+#------------------------------------------------------------------------------#
+#-----> Code title: Extreme events: Quantitative Review
+
+#-----> Publication: Stewart, M., Carleton, W.C., Groucutt, H.S., Extreme events
+#       in biological, societal, and earth sciences: a systematic review of the
+#       literature. Frontiers in Earth Sciences.
+
+#-----> Code by: Mathew Stewart
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### Libraries ###
+install.packages("tidyverse")
+install.packages("vegan")
+install.packages("tidytext")
+install.packages("gplots")
+install.packages("reshape2")
+library(tidyverse)
+library(vegan)
+library(tidytext)
+library(gplots)
+library(reshape2)
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### Working directory ###
+setwd("~/Dropbox/Projects/Extreme events/Quant review/Data/")
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### Load, separate, and tidy csv. ###
+df <- read.csv("QuantRev_Table2.csv")
+df <- separate_rows(df, Categories, sep = ";") ### separates out rows
+df$Categories <- trimws(df$Categories, which = c("left")) ### trims leading whitespaces
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### CONCEPT COUNTS ###
+df$concept <- str_detect(df$Categories, "^4.")
+concept <- subset(df, concept=="TRUE")
+
+concept <- concept %>% 
+  count(Categories) %>%
+  mutate(percent=n/200*100) %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", ""))
+
+conceptPlot <- ggplot(concept, aes(x=reorder(Categories, +percent), y=percent)) +
+  geom_bar(stat="identity", fill="#045a8d") +
+  theme_classic() +
+  xlab("Concept") +
+  coord_flip() +
+  ylab("%") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20, face ="bold")) +
+  geom_text(aes(label = n), hjust = 2, colour = "white")
+
+conceptPlot
+
+#-----> To select other variables use the following in place of "^4.":
+#---> Focus           ^2.
+#---> Definition      ^3.
+#---> Concept         ^4.
+#---> Data type       ^5.
+#---> Analysis type   ^6.
+#---> Themes          ^7.
+#---> Geography       ^11
+#---> Event type      ^12.
+#---> Discipline      ^14.
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### CONCEPT COUNT BY DISCIPLINE ###
+df <- read.csv("QuantRev_Table2.csv") ### reloads df
+
+df$discipline <- str_detect(df$Categories, "Social Science")
+discipline <- subset(df, discipline == "TRUE") ### subsets df by discipline
+
+discipline <- separate_rows(discipline, Categories, sep = ";")
+discipline$Categories <- trimws(discipline$Categories, which = c("left")) ### cleans df
+
+discipline$discipline <- str_detect(discipline$Categories, "^4.")
+discipline <- subset(discipline, discipline=="TRUE") ### subsets df by concepts
+
+discipline <- discipline %>%
+  mutate_at("Categories", str_replace, "High-magnitude", "Magnitude") ### combines "High-magnitude" and "Magnitude"
+
+discipline <- discipline %>% 
+  mutate(Categories = str_replace(Categories, ".*?\\s", "")) %>%
+  count(Categories) %>%
+  mutate(percent=n/71*100)
+
+socialPlot <- ggplot(discipline, aes(x=reorder(Categories, +percent), y=percent)) +
+  geom_bar(stat="identity", fill="#045a8d") +
+  theme_bw() +
+  xlab("") +
+  coord_flip() +
+  ylab("%") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20, face ="bold")) +
+  geom_text(aes(label = n), hjust = 2, colour = "white") +
+  ggtitle("Social Sciences") +
+  theme(plot.title = element_text(face="bold", size=22))
+
+socialPlot
+
+#-----> To select other disciplines change "Social Science" and the denominator 71 to the following:
+#---> Earth Science (38)
+#---> Climate Science (28)
+#---> Ecology (23)
+#---> Palaeo Science (39)
+#-----> To look at themes as opposed to concepts, change the "^4." to a "^.7" (see above)
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### PUBLICATION DATE ###
+df <- read.csv("QuantRev_Table2.csv")
+PubDateWoS <- read.csv("PublicationDates_WoS.csv") ### Number of publications by year from Web of Science (WoS)
+
+PubDate <- df %>%
+  count(Year.derived) %>%
+  mutate(percent=n/200*100) %>%
+  dplyr::rename(PY = Year.derived)
+
+PubDate <- subset(PubDate, PY > 1995 & PY < 2020)
+
+PubDatePlot <- ggplot(PubDate, aes(x=PY, y=n)) +
+  geom_point(size=5) +
+  theme_bw() +
+  xlab("Publication year") +
+  ylab("Count") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20)) +
+  xlim(1995,2020)
+
+PubDatePlot
+
+PubDateWoS <- PubDateWoS %>%
+  replace(is.na(.), 0) %>%
+  select(c(-2,-4)) %>%
+  mutate(sum = rowSums(.[2:7])) %>%
+  select(c(1,8))
+
+PubDateCor <- merge(PubDateWoS, PubDate, by.x = "PY")
+
+PubDateCor <- PubDateCor %>%
+  mutate(percent2 = n/sum *100)
+
+PubDateCorPlot <- ggplot(PubDateCor, aes(x=PY, y=percent2)) +
+  geom_point(size=5) +
+  theme_bw() +
+  xlab("Publication year") +
+  ylab("Proportion") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20)) +
+  ylim(0.008, 0.35) +
+  xlim(1997,2021)
+
+PubDateCorPlot
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### COLLOCATION ANALYSIS ###
+df <- read.csv("QuantRev_Table2.csv")
+df <- separate_rows(df, Categories, sep = ";") ### separates out rows
+df$Categories <- trimws(df$Categories, which = c("left")) ### trims leading whitespaces
+
+df$coll <- str_detect(df$Categories, "^4.")
+coll <- subset(df, coll=="TRUE")
+
+coll <- coll %>%
+  group_by(Categories) %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", "")) %>%
+  mutate(count=n())
+
+coll_dtm <- coll %>%
+  cast_dtm(DOI.name, Categories, count)
+
+w <- dcast(coll, Categories~DOI.name)
+x <- as.matrix(w[,-1])
+x[is.na(x)] <- 0
+x <- apply(x, 2,  function(x) as.numeric(x > 0)) ### recode as 0/1
+coocCounts <- x %*% t(x) ### create matrix
+dimnames(coocCounts) <- list(w[, 1], w[,1]) ### name the dimensions
+coocCounts <- as.data.frame(coocCounts) ### matrix as dataframe
+
+source("https://slcladal.github.io/rscripts/calculateCoocStatistics.R")
+
+coocTerm <- "Impact"
+coocs <- calculateCoocStatistics(coocTerm, coll_dtm, measure="DICE")
+
+coocdf <- coocs %>%
+  as.data.frame() %>%
+  dplyr::mutate(CollStrength = coocs,
+                Term = names(coocs))
+
+#-----> To analyze the collocation strength of other concepts, change the coocTerm "Impact"
+#-----> To look at themes as opposed to concepts, change the "^4." to a "^.7" (see above)
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### COLLECTORS CURVES ###
+df$concept <- str_detect(df$Categories, "^4.")
+concept <- subset(df, concept=="TRUE")
+
+concept <- as.data.frame(with(concept, unclass(table(DOI.name, Categories))))
+
+SAC <- specaccum(concept, method = "random", permutations = 100)
+plot(SAC, xlab = "Articles", ylab = "Concepts", col="#045a8d", lwd=1, ci.col="#9ecae1")
+
+#-----> To select other variables use the following in place of "^4.":
+#---> Focus           ^2.
+#---> Definition      ^3.
+#---> Concept         ^4.
+#---> Data type       ^5.
+#---> Analysis type   ^6.
+#---> Themes          ^7.
+#---> Geography       ^11
+#---> Event type      ^12.
+#---> Discipline      ^14)
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+### CLUSTER ANALYSIS ###
+df <- read.csv("QuantRev_Table2.csv")
+df <- separate_rows(df, Categories, sep = ";") ### separates out rows
+df$Categories <- trimws(df$Categories, which = c("left")) ### trims leading whitespaces
+
+df$theme <- str_detect(df$Categories, "^7.")
+theme <- subset(df, theme=="TRUE")
+theme <- theme %>%
+  group_by(Categories) %>%
+  mutate(count=n()) %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", ""))
+
+theme <- subset(theme, count > 21)
+theme <- as.data.frame(with(theme, unclass(table(DOI.name, Categories))))
+heatmap.2(as.matrix(theme), key=FALSE, trace = "none", col = c("white", "black"), margins = c(11,11))
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
 
