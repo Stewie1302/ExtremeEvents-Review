@@ -7,7 +7,7 @@ The term ‘extreme event’ is commonly used to describe high-impact, unanticip
 # Supplementary data
 <b>Supplementary data file 1</b> comprises the main dataset used in the analysis.
 
-<b>Supplementary data file 2</b> comprises the number of publications per year for the most common journals in our literature sample.
+<b>Supplementary data file 2</b> comprises the number of publications per year for the most common journals in our literature sample and is used when plotting the number of publications per year corrected for through-time changes in publication volume.
 
 # Software
 The analysis described in the associated manuscript was performed in R. Any questions can be directed to mstewart@ice.mpg.de
