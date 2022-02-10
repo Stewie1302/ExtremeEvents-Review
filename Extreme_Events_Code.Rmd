@@ -16,7 +16,7 @@ library(reshape2)
 ## Set working directory and load data
 ```{r, setup}
 setwd("~/Dropbox/Projects/Extreme events/Quant review/Data/")
-df <- read.csv("Supplementary_data.csv")
+df <- read.csv("Appendix_1.csv")
 ```
 
 ## Examine concepts
@@ -113,7 +113,7 @@ Produces two plots. The first shows the number of articles published by year. Th
 
 ```{r, publication, message=FALSE, warning=FALSE}
 df4 <- df
-PubDateWoS <- read.csv("Supplementary_data2.csv")
+PubDateWoS <- read.csv("Appendix_2.csv")
 
 PubDate <- df4 %>%
   count(Year.derived) %>%
