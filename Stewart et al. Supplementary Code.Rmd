@@ -1,0 +1,243 @@
+---
+title: "Replication document for Extreme Events Review"
+author: "Mathew Stewart"
+output: pdf_document
+---
+
+## Load Libraries
+```{r, libraries, message=FALSE}
+library(tidyverse)
+library(vegan)
+library(tidytext)
+library(gplots)
+library(reshape2)
+```
+
+## Set working directory and load data
+```{r, setup}
+setwd("/Users/stewart/Dropbox/Projects/Extreme events/Quant review/Data/")
+df <- read.csv("Appendix_1.csv")
+```
+
+## Examine concepts
+The below example examines and plots the most common concepts in the literature sample. To select other variables, use the following in place of "^4.":
+
+Variable | Search String |
+--- | --- |
+Focus | ^2. |
+Definition | ^3. |
+Concept | ^4. |
+Data type | ^5. |
+Analysis type | ^6. |
+Themes | ^7. |
+Geography | ^11. |
+Event type | ^12. |
+Discipline | ^14. |
+
+```{r, concepts, message=FALSE, warning=FALSE}
+df2 <- df
+df2 <- separate_rows(df2, Categories, sep = ";")
+df2$Categories <- trimws(df2$Categories, which = c("left"))
+df2$concept <- str_detect(df2$Categories, "^4.")
+concept <- subset(df2, concept=="TRUE")
+
+concept <- concept %>%
+  count(Categories) %>%
+  mutate(percent=n/200*100) %>%
+  top_n(10)  %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", ""))
+
+conceptPlot <- ggplot(concept, aes(x=reorder(Categories, +percent), y=percent)) +
+  geom_bar(stat="identity", fill="#045a8d") +
+  theme_classic() +
+  xlab("Concept") +
+  coord_flip() +
+  ylab("%") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20, face ="bold")) +
+  geom_text(aes(label = n), hjust = 2, colour = "white")
+
+conceptPlot
+```
+
+## Examine concepts by discipline
+The below example examines and plots the most common concepts in the social sciences. To examine other disciplines change the discipline and denominator to the following:
+
+Discipline | Denominator |
+--- | --- |
+Earth Science | 38 |
+Climate Science | 28 |
+Ecology | 23 |
+Palaeo Science | 29 |
+
+As above, to examine themes instead of concepts, change the "^4." to a "^.7".
+
+```{r, discipline, message=FALSE, warning=FALSE}
+df3 <- df
+
+df3$discipline <- str_detect(df3$Categories, "Social Science")
+discipline <- subset(df3, discipline == "TRUE")
+
+discipline <- separate_rows(discipline, Categories, sep = ";")
+discipline$Categories <- trimws(discipline$Categories, which = c("left")) 
+
+discipline$discipline <- str_detect(discipline$Categories, "^4.")
+discipline <- subset(discipline, discipline=="TRUE")
+
+discipline <- discipline %>%
+  mutate_at("Categories", str_replace, "High-magnitude", "Magnitude")
+
+discipline <- discipline %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", "")) %>%
+  count(Categories) %>%
+  mutate(percent=n/71*100) %>%
+  slice_max(percent, n = 8, with_ties = TRUE)
+
+socialPlot <- ggplot(discipline, aes(x=reorder(Categories, +percent), y=percent)) +
+  geom_bar(stat="identity", fill="#045a8d") +
+  theme_bw() +
+  xlab("") +
+  coord_flip() +
+  ylab("%") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20, face ="bold")) +
+  geom_text(aes(label = n), hjust = 2, colour = "white") +
+  ggtitle("Social Sciences") +
+  theme(plot.title = element_text(face="bold", size=22))
+
+socialPlot
+```
+
+## Publication dates
+Produces two plots. The first shows the number of articles published by year. The second is the same by corrected for through-time changes in publication volume.
+
+```{r, publication, message=FALSE, warning=FALSE}
+df4 <- df
+PubDateWoS <- read.csv("Appendix_2.csv")
+
+PubDate <- df4 %>%
+  count(Year.derived) %>%
+  mutate(percent=n/200*100) %>%
+  dplyr::rename(PY = Year.derived)
+
+PubDate <- subset(PubDate, PY > 1995 & PY < 2020)
+
+PubDatePlot <- ggplot(PubDate, aes(x=PY, y=n)) +
+  geom_point(size=5) +
+  theme_bw() +
+  xlab("Publication year") +
+  ylab("Count") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20)) +
+  xlim(1995,2020)
+
+PubDatePlot
+
+PubDateWoS <- PubDateWoS %>%
+  replace(is.na(.), 0) %>%
+  select(c(-2,-4)) %>%
+  mutate(sum = rowSums(.[2:7])) %>%
+  select(c(1,8)) %>%
+  dplyr::rename(PY=1)
+
+PubDateCor <- merge(PubDateWoS, PubDate, by.x = "PY")
+
+PubDateCor <- PubDateCor %>%
+  mutate(percent2 = n/sum *100)
+
+PubDateCorPlot <- ggplot(PubDateCor, aes(x=PY, y=percent2)) +
+  geom_point(size=5) +
+  theme_bw() +
+  xlab("Publication year") +
+  ylab("Proportion") +
+  theme(axis.text = element_text(size=18)) +
+  theme(axis.title=element_text(size=20)) +
+  ylim(0.008, 0.35) +
+  xlim(1997,2021)
+
+PubDateCorPlot
+```
+
+### Collocation (co-occurence) analysis
+Analyses the collocation (i.e. co-occurrence) strength between terms. The below example is for the concept "Impact".
+
+To examine the collocation strength of other terms switch out the term "Impact". For example, switch out "Impact" for "Disaster".
+
+As above, to examine themes as opposed to concepts, change the "^4." to a "^7.".
+
+```{r, collocation, message=FALSE, warning=FALSE}
+df5 <- df
+df5 <- separate_rows(df5, Categories, sep = ";")
+df5$Categories <- trimws(df5$Categories, which = c("left"))
+
+df5$coll <- str_detect(df5$Categories, "^4.")
+coll <- subset(df5, coll=="TRUE")
+
+coll <- coll %>%
+  group_by(Categories) %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", "")) %>%
+  mutate(count=n())
+
+coll_dtm <- coll %>%
+  cast_dtm(DOI.name, Categories, count)
+
+w <- dcast(coll, Categories~DOI.name)
+x <- as.matrix(w[,-1])
+x[is.na(x)] <- 0
+x <- apply(x, 2,  function(x) as.numeric(x > 0))
+coocCounts <- x %*% t(x) ### create matrix
+dimnames(coocCounts) <- list(w[, 1], w[,1])
+coocCounts <- as.data.frame(coocCounts)
+
+source("https://slcladal.github.io/rscripts/calculateCoocStatistics.R")
+
+coocTerm <- "Impact"
+coocs <- calculateCoocStatistics(coocTerm, coll_dtm, measure="DICE")
+
+coocdf <- coocs %>%
+  as.data.frame() %>%
+  dplyr::mutate(CollStrength = coocs,
+                Term = names(coocs))
+```
+
+## Collectors curves
+The below example produces a collectors curve for concepts. To select other variable use the following in place of "^4.":
+
+Variable | Search String |
+--- | --- |
+Data type | ^5. |
+Theme | ^7. |
+Event type | ^12. |
+
+```{r, collectors, message=FALSE, warning=FALSE}
+df6 <- df
+df6 <- separate_rows(df6, Categories, sep = ";")
+df6$Categories <- trimws(df6$Categories, which = c("left"))
+df6$concept <- str_detect(df6$Categories, "^4.")
+concept <- subset(df6, concept=="TRUE")
+
+concept <- as.data.frame(with(concept, unclass(table(DOI.name, Categories))))
+
+SAC <- specaccum(concept, method = "random", permutations = 100)
+plot(SAC, xlab = "Articles", ylab = "Concepts", col="#045a8d", lwd=1, ci.col="#9ecae1")
+```
+
+## Cluster analysis
+Performs a cluster analysis for the most common themes and produces a heat map.
+
+```{r, cluster, message=FALSE, warning=FALSE}
+df7 <- read.csv("Appendix_4.csv")
+df7 <- separate_rows(df7, Categories, sep = ";")
+df7$Categories <- trimws(df7$Categories, which = c("left"))
+
+df7$theme <- str_detect(df7$Categories, "^7.")
+theme <- subset(df7, theme=="TRUE")
+theme <- theme %>%
+  group_by(Categories) %>%
+  mutate(count=n()) %>%
+  mutate(Categories = str_replace(Categories, ".*?\\s", ""))
+
+theme <- subset(theme, count > 18)
+theme <- as.data.frame(with(theme, unclass(table(Author, Categories))))
+heatmap.2(as.matrix(theme), key=FALSE, trace = "none", col = c("white", "black"), margins = c(11,11))
+```
